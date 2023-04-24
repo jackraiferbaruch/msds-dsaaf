@@ -1,0 +1,138 @@
+---
+title: "NYPD Shooting Incident Data"
+author: "Jack Raifer Baruch"
+date: "2023-03-11"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## NYPD Shooting Incident Data Analysis
+
+In this short project we will be working with data from the New York Police Department shooting incident report data. The original data can be found here: <https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD>.
+
+This data records the all the information available of every shooting incident reported from 2006 up to 2022 in New York City.
+
+For this project I will try and be clear about each step taken as well and make everything from the explanations to the code reproducible by others.
+
+In general, I will be using the `Tidyverse` collection of libraries to load, tidy and analyze the data. This is just a brief exercise and is by no means an exhaustive analysis of this data.
+
+I particular, I will explore some basic information, especially the proportion of shootings that lead to deaths (murder), victims by age and victims by gender, to try and find any interesting patterns that can lead to a deeper investigation.
+
+### Libraries
+First step is to load the packages that we need to work. In this case, the tidyverse library collection.
+
+```{r Import Libraries}
+library(tidyverse)
+```
+
+### Importing data into a dataset
+Now we need to import the data and crate a dataframe with it. So first we create a variable of where the data is located, so we can use it in our dataframe. We will create a variable called `url_in`, which will hold the info of where our data is located online:
+
+```{r Data Source}
+url_in <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+```
+
+Now, we can create a new variable, which will be our dataframe, that will hold the data we need for us to wrangle. We will call the dataset `shootings`.
+
+```{r Data Set}
+shootings <- read.csv(url_in)
+```
+
+## Tidying and Transforming the Data
+
+Now that we have data loaded into a dataframe, we can start looking at what is available, organizing it and transforming the data where we need to.
+
+While doing this it is always good to ask some basic questions, the first one is always: do I trust the data? In this case, we can be fairly certain, that baring a few human errors, this data is correct, even though I am sure it does not include every shooting incident in New York City, only those in which the Police Department was made aware.
+
+We can begin by looking into each column to see if the data is useful and if it is in a format that is valuable to us using the structure command `str`:
+
+```{r Structure}
+str(shootings)
+```
+
+We can see a few columns we do not need, like for example `INCIDENT_KEY`, which is a file number that offers us no data of importance. Also, we can make it easier if we focus only on the data we are interested. In this case we are not going to do geographical analysis, so all the geo-location data will not be needed.
+
+```{r Smaller Dataser}
+shootings <- shootings[c('OCCUR_DATE', 'OCCUR_TIME', 'BORO', 'STATISTICAL_MURDER_FLAG', 'PERP_AGE_GROUP', 'PERP_SEX', 'PERP_RACE', 'VIC_AGE_GROUP', 'VIC_SEX', 'VIC_RACE')]
+```
+Now we can deal with the `OCCUR_DATE` and `OCCUR_TIME` columns being characters instead of date and/or time objects. Although we will not be using them for this partiicular analysis, we will transform them into a more useful format in case we want to expand this exploration in the future. We can make this more usable by creating a datetime object that combines both of these:
+
+```{r Create Datetime Column}
+shootings$OCCUR_DATETIME <- as.POSIXct(paste(shootings$OCCUR_DATE, shootings$OCCUR_TIME), format = "%m/%d/%Y %H:%M:%S")
+```
+And now, we simply remove the `OCCUR_DATE` and `OCCUR_TIME` columns from the dataframe:
+```{r Remove Columns}
+shootings <- shootings[,c(-1, -2)]
+```
+Now we are left with the following structure:
+```{r Structure02}
+str(shootings)
+```
+With a smaller and tidier dataframe, we can now move into the Analysis part of the project.
+
+## Data Analysis
+
+There are a few interesting things we can analyze with this data. Let's start by visualizing how many of the shooting incidents opened up murder investigations and vs. how many did not:
+
+```{r Muders}
+freq_table_murders <- table(shootings$STATISTICAL_MURDER_FLAG)
+barplot(freq_table_murders, 
+        main = "Shooting Incidets, Murder vs. Others", 
+        xlab = "Murder/Not Murder", 
+        ylab = "Frequency", 
+        col = c("blue", "red"))
+        legend("topright", c("Not Muder", "Murder"), fill = c("blue", "red"))
+```
+```{r Muders_Proportion}
+murder_count <- sum(shootings$STATISTICAL_MURDER_FLAG == 'true')
+shootings_count <- sum(shootings$STATISTICAL_MURDER_FLAG == 'false')
+proportion_murders <- murder_count / (shootings_count + murder_count)
+
+print(proportion_murders)
+```
+
+Here we can see that about one fifth of the shooting incidents (19.25%) open up murder investigations.
+
+Another interesting thing we might want to look up is the victims age range (suspects data is also interesting, but since there is a lot of it missing, we will stick to the victims):
+
+```{r Victims by Age}
+freq_table_victims <- table(shootings$VIC_AGE_GROUP)
+barplot(freq_table_victims,
+        main = "Shooting Victims by Age Goup",
+        xlab = "Age Group",
+        ylab = "Number of Victims",
+        col = c('red', 'blue', 'green', 'yellow', 'orange', 'purple'))
+```
+Here we can see that most victims are between 18 and 44 years old. However, we can see here that the data is very limited and the bins for age groups do not give us a lot of information. It would be interesting to have the actual age of the victims (or close to), to be able to get more interesting insights.
+
+Finally, we can take a look at the distribution of victims by sex:
+
+```{r Victim Sex}
+freq_table_victim_sex <- table(shootings$VIC_SEX)
+barplot(freq_table_victim_sex,
+        main = "Shooting Victims by Sex",
+        xlab = "Victim Sex",
+        ylab = "Number of Victims",
+        col = c('red', 'blue', 'yellow'))
+```
+
+```{r victim_sex_proportion}
+female_victims <- sum(shootings$VIC_SEX == 'F')
+male_victims <- sum(shootings$VIC_SEX == 'M')
+proportion_victims <- female_victims / (male_victims + female_victims)
+
+print(proportion_victims)
+```
+
+Here we clearly see that most victims are male (over 90%), this is also an interesting issue to analyze, it would also be good to get into the murder flags by sex, to discover if it might be more common to find female or male murder victims, since that could help us understand some of the reason behind murders in NYC.
+
+## Bias Identification
+
+There is plenty of existing evidence that there is high bias when it comes to crime, and most of it is related to race. If we were to analyze this data further, we would be able to see that most of the people involved in crimes are of minority racial groups.
+
+The biggest problem with crime data, is that we do not know how much of it simply does not get reported, and here we go back to the question: Do we trust the data? This is a complex issue when it comes to crime in general, especially in a polarized and historically racist society like the one in the US (and here are some of my biases popping up). Nonetheless it is worth exploring further.
